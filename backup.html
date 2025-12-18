@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartCart Grocery Shop</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; color: #333; }
+  header { background: #27ae60; padding: 1rem; color: white; display: flex; justify-content: space-between; align-items: center; }
+  header input { padding: 0.5rem; border-radius: 4px; border: none; width: 200px; }
+  main { display: flex; gap: 1rem; padding: 1rem; }
+  .products { flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
+  .card { background: white; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); overflow: hidden; display: flex; flex-direction: column; }
+  .card img { width: 100%; height: 140px; object-fit: cover; background: #eee; }
+  .card .info { padding: 0.5rem; flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+  .card h4 { margin: 0 0 0.5rem; font-size: 1rem; }
+  .add-btn, .qty-controls { margin-top: auto; background: #27ae60; color: white; border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer; text-align: center; }
+  .qty-controls { display: flex; justify-content: space-between; align-items: center; background: white; border: 2px solid #27ae60; color: #27ae60; font-weight: bold; }
+  .qty-controls button { border: none; background: none; color: #27ae60; font-size: 1.2rem; cursor: pointer; padding: 0 0.5rem; }
+  .cart { position: fixed; top: 0; right: -350px; width: 350px; height: 100%; background: white; box-shadow: -2px 0 6px rgba(0,0,0,0.2); padding: 1rem; transition: right 0.3s; overflow-y: auto; display: flex; flex-direction: column; }
+  .cart.open { right: 0; }
+  .cart-item { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+  .cart button { margin-top: 0.5rem; padding: 0.5rem; border: none; border-radius: 4px; cursor: pointer; }
+  .back-btn { background: #ccc; color: #333; }
+  .checkout-btn { background: #27ae60; color: white; }
+  #recommendations div { margin-bottom: 1rem; }
+  .rec-qty-controls { display: flex; justify-content: space-between; align-items: center; width: 90px; border: 2px solid #27ae60; color: #27ae60; font-weight: bold; border-radius: 4px; padding: 0 5px; margin-top: 5px; }
+  .rec-qty-controls button { border: none; background: none; color: #27ae60; font-size: 1rem; cursor: pointer; padding: 0 5px; }
+  footer { text-align: center; padding: 1rem; font-size: 0.8rem; color: #777; }
+</style>
+</head>
+<body>
+
+<header>
+  <div><strong>SmartCart</strong> Grocery</div>
+  <input type="text" id="search" placeholder="Search...">
+  <button id="cartBtn">Cart (0)</button>
+</header>
+
+<main>
+  <section class="products" id="productList"></section>
+</main>
+
+<div id="cartPanel" class="cart"></div>
+
+<footer>SmartCart • Behaviour-Based Recommendations Demo</footer>
+
+<script>
+const products = [
+  { id: "1", name: "Fish", category: "Seafood", price: 300 },
+  { id: "2", name: "Salt", category: "Spices", price: 20 },
+  { id: "3", name: "Biscuit", category: "Snacks", price: 50 },
+  { id: "4", name: "Chicken", category: "Meat", price: 250 },
+  { id: "5", name: "Butter", category: "Dairy", price: 120 },
+  { id: "6", name: "Lays", category: "Snacks", price: 60 },
+  { id: "7", name: "Oil", category: "Cooking", price: 180 },
+  { id: "8", name: "Coke", category: "Beverages", price: 40 },
+  { id: "9", name: "Paneer", category: "Dairy", price: 200 },
+  { id: "10", name: "Sugar", category: "Staples", price: 50 },
+  { id: "11", name: "Wheat Flour", category: "Staples", price: 90 },
+  { id: "12", name: "Horlicks", category: "Beverages", price: 250 },
+  { id: "13", name: "Milk", category: "Dairy", price: 50 },
+  { id: "14", name: "Bread", category: "Bakery", price: 40 },
+  { id: "15", name: "Pepsi", category: "Beverages", price: 40 },
+  { id: "16", name: "Red Chili Powder", category: "Spices", price: 30 },
+  { id: "17", name: "Rice", category: "Staples", price: 120 },
+  { id: "18", name: "Eggs", category: "Dairy", price: 60 },
+  { id: "19", name: "Boost", category: "Beverages", price: 250 },
+  { id: "20", name: "Turmeric Powder", category: "Spices", price: 30 }
+];
+
+let cart = {};
+let behaviour = [];
+
+function renderProducts(list) {
+  const container = document.getElementById("productList");
+  container.innerHTML = "";
+  list.forEach(p => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <img src="" alt="${p.name}">
+      <div class="info">
+        <h4>${p.name}</h4>
+        <p>₹${p.price}</p>
+        <div class="action" id="action-${p.id}">
+          <button class="add-btn">Add</button>
+        </div>
+      </div>`;
+    card.querySelector(".add-btn").onclick = () => { addToCart(p); updateActionUI(p); };
+    container.appendChild(card);
+    updateActionUI(p);
+  });
+}
+renderProducts(products);
+
+function addToCart(p) {
+  cart[p.id] = (cart[p.id] || 0) + 1;
+  updateCartButton();
+  updateActionUI(p);
+  updateCartContent();
+  recordBehaviour("add", p);
+}
+
+function removeFromCart(p) {
+  if (cart[p.id]) {
+    cart[p.id]--;
+    if (cart[p.id] === 0) delete cart[p.id];
+    updateActionUI(p);
+    updateCartContent();
+  }
+  updateCartButton();
+}
+
+function updateActionUI(p) {
+  const actionDiv = document.getElementById(`action-${p.id}`);
+  if (!actionDiv) return;
+  if (!cart[p.id]) {
+    actionDiv.innerHTML = `<button class="add-btn">Add</button>`;
+    actionDiv.querySelector("button").onclick = () => { addToCart(p); updateActionUI(p); };
+  } else {
+    actionDiv.innerHTML = `
+      <div class="qty-controls">
+        <button onclick="removeFromCart(products.find(x=>x.id==='${p.id}'))">-</button>
+        ${cart[p.id]}
+        <button onclick="addToCart(products.find(x=>x.id==='${p.id}'))">+</button>
+      </div>`;
+  }
+}
+
+function updateCartButton() {
+  document.getElementById("cartBtn").innerText = `Cart (${Object.values(cart).reduce((a,b)=>a+b,0)})`;
+}
+
+function openCart() {
+  const container = document.getElementById("cartPanel");
+  container.classList.add("open");
+  renderCartContent();
+}
+
+function closeCart() {
+  const container = document.getElementById("cartPanel");
+  container.classList.remove("open");
+  container.innerHTML = "";
+}
+
+function renderCartContent() {
+  const container = document.getElementById("cartPanel");
+  container.innerHTML = "";
+
+  // Cart Items
+  const itemsDiv = document.createElement("div");
+  itemsDiv.id = "cartItems";
+  let total = 0;
+  if (Object.keys(cart).length === 0) itemsDiv.innerHTML = "<p>Your cart is empty.</p>";
+  else {
+    Object.entries(cart).forEach(([id, qty]) => {
+      const prod = products.find(p => p.id === id);
+      const div = document.createElement("div");
+      div.className = "cart-item";
+      div.innerHTML = `${prod.name} × ${qty} = ₹${prod.price * qty}`;
+      itemsDiv.appendChild(div);
+      total += prod.price * qty;
+    });
+  }
+
+  const totalP = document.createElement("p");
+  totalP.id = "cartTotal";
+  totalP.innerText = `Total: ₹${total}`;
+
+  const backBtn = document.createElement("button");
+  backBtn.className = "back-btn";
+  backBtn.innerText = "Back";
+  backBtn.onclick = closeCart;
+
+  const checkoutBtn = document.createElement("button");
+  checkoutBtn.className = "checkout-btn";
+  checkoutBtn.innerText = "Checkout";
+  checkoutBtn.onclick = () => alert("Checkout not implemented (demo).");
+
+  // Recommendations
+  const recTitle = document.createElement("h3");
+  recTitle.innerText = "Recommended for you";
+  const recDiv = document.createElement("div");
+  recDiv.id = "recommendations";
+
+  container.append(itemsDiv, totalP, backBtn, checkoutBtn, recTitle, recDiv);
+
+  updateRecommendations();
+}
+
+function recordBehaviour(type, product) {
+  behaviour.push({ type, productId: product.id, category: product.category });
+  updateRecommendations();
+}
+
+function updateRecommendations() {
+  const recDiv = document.getElementById("recommendations");
+  if (!recDiv) return;
+  recDiv.innerHTML = "";
+
+  if (behaviour.length === 0) { recDiv.innerText = "No recommendations yet."; return; }
+
+  let categoryCount = {};
+  behaviour.forEach(b => categoryCount[b.category] = (categoryCount[b.category]||0)+1);
+  const topCategory = Object.entries(categoryCount).sort((a,b)=>b[1]-a[1])[0][0];
+  const recs = products.filter(p => p.category===topCategory).slice(0,3);
+
+  recs.forEach(p => {
+    const div = document.createElement("div");
+    div.innerHTML = `<div>You have missed this product</div><h4>${p.name}</h4><div id="rec-action-${p.id}"></div>`;
+    recDiv.appendChild(div);
+
+    const actionDiv = div.querySelector(`#rec-action-${p.id}`);
+    const renderRecAction = () => {
+      if (!cart[p.id]) {
+        actionDiv.innerHTML = `<button class="add-btn">Add</button>`;
+        actionDiv.querySelector("button").onclick = () => { addToCart(p); renderRecAction(); };
+      } else {
+        actionDiv.innerHTML = `<div class="rec-qty-controls">
+          <button onclick="removeFromCart(products.find(x=>x.id==='${p.id}')); renderRecAction();">-</button>
+          ${cart[p.id]}
+          <button onclick="addToCart(products.find(x=>x.id==='${p.id}')); renderRecAction();">+</button>
+        </div>`;
+      }
+    };
+    renderRecAction();
+  });
+
+  if (recs.length === 0) recDiv.innerText = "No new recommendations at the moment.";
+}
+
+function updateCartContent() {
+  const container = document.getElementById("cartPanel");
+  if (!container.classList.contains("open")) return;
+  renderCartContent();
+}
+
+document.getElementById("cartBtn").onclick = openCart;
+document.getElementById("search").oninput = (e) => {
+  const q = e.target.value.toLowerCase();
+  renderProducts(products.filter(p => p.name.toLowerCase().includes(q)));
+};
+</script>
+</body>
+</html>
